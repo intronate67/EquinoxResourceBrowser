@@ -1,0 +1,375 @@
+﻿@page "/"
+@using EquinoxResourceBrowser.Dtos
+@using EquinoxResourceBrowser.Enums
+@using EquinoxResourceBrowser.Interfaces
+
+@inject IConstellationService ConstellationService
+@inject IResourceService Resources
+@inject IRegionService RegionService
+@inject ISystemService SystemService
+@inject IUpgradeService Upgrades
+
+<PageTitle>Home</PageTitle>
+
+<RadzenDataGrid IsLoading="IsLoading"
+                PageSize="10"
+                AllowPaging="true"
+                AllowSorting="true"
+                AllowFiltering="true"
+                Data="Regions"
+                ExpandMode="DataGridExpandMode.Single" 
+                ShowExpandColumn="true"
+                TItem="RegionDto"
+                RowExpand="RegionRowExpand">
+    <Template Context="region">
+        <RadzenCard Style="margin-bottom:20px">
+            Region:
+            <b>@region.Name</b>
+        </RadzenCard>
+        <RadzenDataGrid IsLoading="IsConstellationLoading"
+                        Data="Constellations"
+                        PageSize="10"
+                        AllowPaging="true"
+                        AllowSorting="true"
+                        AllowFiltering="true"
+                        ExpandMode="DataGridExpandMode.Single"
+                        ShowExpandColumn="true"
+                        TItem="ConstellationDto"
+                        RowExpand="ConstellationRowExpand">
+            <Template Context="constellation">
+                <RadzenCard Style="margin-bottom:20px">
+                    Constellation:
+                    <b>@constellation.Name</b>
+                </RadzenCard>
+                <RadzenDataGrid Data="Systems"
+                                IsLoading="IsSystemsLoading"
+                                PageSize="10"
+                                AllowPaging="true"
+                                AllowSorting="true"
+                                AllowFiltering="true"
+                                ExpandMode="DataGridExpandMode.Single"
+                                ShowExpandColumn="true"
+                                TItem="SystemDto"
+                                RowExpand="SystemRowExpand">
+                    <Template Context="system">
+                        @if(SystemResources is not null)
+                        {
+                            <RadzenCard Style="margin-bottom:20px">
+                                <RadzenStack Orientation="Orientation.Horizontal" Gap="1rem" Wrap="FlexWrap.Wrap">
+                                    <img class="img-thumbnail" src="https://images.evetech.net/types/@(SystemResources.Star?.TypeId ?? 12)/icon" height="64" width="64" />
+                                    <div class="align-self-center">
+                                        <div>
+                                            System:
+                                            <b>@system.Name</b>
+                                        </div>
+                                        <div>
+                                            Star Power: 
+                                            <b>@(SystemResources.Star?.Power ?? 0) TW</b>
+                                        </div>
+                                    </div>
+                                    @if (system.SovereignAllianceId.HasValue)
+                                    {
+                                        <img class="img-thumbnail" src="https://images.evetech.net/alliances/@system.SovereignAllianceId.Value/logo" height="64" width="64" />
+                                        <div class="align-self-center">
+                                            Owned by Alliance:
+                                            <b>@system.SovereignAllianceName</b>
+                                        </div>
+                                    }
+                                    else if (system.SovereignCorporationId.HasValue)
+                                    {
+                                        <img class="img-thumbnail" src="https://images.evetech.net/corporations/@system.SovereignCorporationId.Value/logo" height="64" width="64" />
+                                        <div class="align-self-center">
+                                            Owned by Corporation:
+                                            <b>@system.SovereignCorporationName</b>
+                                        </div>
+                                    }
+                                    else if (system.SovereignFactionId.HasValue)
+                                    {
+                                        <img class="img-thumbnail" src="https://images.evetech.net/alliances/@system.SovereignFactionId.Value/logo" height="64" width="64" />
+                                        <div class="align-self-center">
+                                            Owned by Faction:
+                                            <b>@system.SovereignFacionName</b>
+                                        </div>
+                                    }
+                                    <div class="align-self-center">
+                                        Total Power:
+                                        <b>@system.TotalPower</b>
+                                    </div>
+                                    <div class="align-self-center">
+                                        Total Workforce:
+                                        <b>@system.TotalWorkforce</b>
+                                    </div>
+                                </RadzenStack>
+                            </RadzenCard>
+                            <div class="row">
+                                <div class="col-lg-8">
+                                    <RadzenDataGrid Data="SystemResources.Planets"
+                                                    IsLoading="IsResourcesLoading"
+                                                    PageSize="10"
+                                                    AllowPaging="true"
+                                                    AllowSorting="true"
+                                                    AllowFiltering="true">
+                                        <Columns>
+                                            <RadzenDataGridColumn CssClass="text-center" Width="72px">
+                                                <Template Context="planet">
+                                                    <img class="img-thumbnail" src="https://images.evetech.net/types/@planet.TypeId/icon" height="64" width="64" />
+                                                </Template>
+                                            </RadzenDataGridColumn>
+                                            <RadzenDataGridColumn Property="Name" Title="Name" />
+                                            <RadzenDataGridColumn Property="Power" Title="Power" />
+                                            <RadzenDataGridColumn Property="Workforce" Title="Workforce" />
+                                            <RadzenDataGridColumn Property="SuperionicRate" Title="Superionic Ice / Hour" />
+                                            <RadzenDataGridColumn Property="MagmaticRate" Title="Magmatic Gas / Hour" />
+                                        </Columns>
+                                    </RadzenDataGrid>
+                                </div>
+                                <div class="col-lg-4 mt-3 mt-lg-0">
+                                    <RadzenCard class="d-flex flex-column">
+                                        <RadzenLabel Text="Potential System Upgrades" />
+                                        <RadzenFormField Text="Workforce Restriction" Variant="Variant.Outlined">
+                                            <RadzenRadioButtonList @bind-Value="SelectedUpgradeFilter" Disabled="IsCalculatingResources" TValue="int" Orientation=Orientation.Vertical class="my-2 ps-2">
+                                                <Items>
+                                                    <RadzenRadioButtonListItem Text="All Connected Systems" Value="0" />
+                                                    <RadzenRadioButtonListItem Text="Region Only" Value="1" />
+                                                    <RadzenRadioButtonListItem Text="Constellation Only" Value="2" />
+                                                    <RadzenRadioButtonListItem Text="System Only" Value="3" />
+                                                </Items>
+                                            </RadzenRadioButtonList>
+                                        </RadzenFormField>
+                                        <RadzenButton ButtonType="ButtonType.Button" class="my-3" Size="ButtonSize.Large" Disabled="IsCalculatingResources" Click="@(() => CalculateSystemUpgrades(system.Id))" Icon="autorenew" Text="Calculate" />
+                                        @if(IsCalculatingResources)
+                                        {
+                                            <RadzenProgressBarCircular Value="100" ShowValue="false" Mode="ProgressBarMode.Indeterminate" />
+                                        }
+                                        else if(CalculatedResources is not null && CalculatedResources.SolarSystemId == system.Id)
+                                        {
+                                            <RadzenFormField Text="Available Resources" Variant="Variant.Outlined" class="mb-3">
+                                                <RadzenStack Orientation="Orientation.Horizontal">
+                                                    <div class="text-center p-2">
+                                                        <b>Power</b>
+                                                        @CalculatedResources.TotalPower.ToString("N0") TW
+                                                    </div>
+                                                    <div class="text-center p-2">
+                                                        <b>Workforce</b>
+                                                        @CalculatedResources.TotalWorkforce.ToString("N0")
+                                                    </div>
+                                                </RadzenStack>
+                                            </RadzenFormField>
+                                            if (CalculatedResources.TotalPower > 0 || CalculatedResources.TotalWorkforce > 0 && PossibleUpgrades.Count > 0)
+                                            {
+                                                <div class="row">
+                                                    <div class="col-md-7">
+                                                        <RadzenFormField Text="Upgrades" Variant="Variant.Outlined">
+                                                            <RadzenCheckBoxList Orientation="Orientation.Vertical" TValue="UpgradeDto" @bind-Value=SelectedUpgrades class="ps-2">
+                                                                <Items>
+                                                                    @foreach (var upgrade in PossibleUpgrades)
+                                                                    {
+                                                                        <RadzenCheckBoxListItem Value="upgrade" Text="@upgrade.Name" />
+                                                                    }
+                                                                </Items>
+                                                            </RadzenCheckBoxList>
+                                                        </RadzenFormField>
+                                                    </div>
+                                                    <div class="col-md-5">
+                                                        <!-- TODO: Color them based on if they exceed CalculatedResources.TotalPower or CalculatedResources.TotalPower -->
+                                                        <RadzenFormField Text="Required Resources" Variant="Variant.Outlined" class="w-100">
+                                                            <RadzenStack Orientation="Orientation.Vertical" class="text-start p-3">
+                                                                <RadzenText TextStyle="TextStyle.Overline" class="mb-0">Required Power</RadzenText>
+                                                                <RadzenText TextStyle="TextStyle.Body1"><b class="@GetResourceCssColor(SelectedPowerRequirement, CalculatedResources.TotalPower)">@SelectedPowerRequirement</b></RadzenText>
+                                                                <RadzenText TextStyle="TextStyle.Overline" class="mb-0">Required Workforce</RadzenText>
+                                                                <RadzenText TextStyle="TextStyle.Body1"><b class="@GetResourceCssColor(SelectedWorkforceRequirement, CalculatedResources.TotalWorkforce)">@SelectedWorkforceRequirement</b></RadzenText>
+                                                                <RadzenText TextStyle="TextStyle.Overline" class="mb-0">Superionic Ice / Hour</RadzenText>
+                                                                <RadzenText TextStyle="TextStyle.Body1"><b>@SelectedSuperionicRate</b></RadzenText>
+                                                                <RadzenText TextStyle="TextStyle.Overline" class="mb-0">Magmatic Gas / Hour</RadzenText>
+                                                                <RadzenText TextStyle="TextStyle.Body1"><b>@SelectedMagmaticRate</b></RadzenText>
+                                                            </RadzenStack>
+                                                        </RadzenFormField>
+                                                        
+                                                    </div>
+                                                </div>                                                
+                                            }
+                                            else
+                                            {
+                                                // No resources available (this system is shit/ls/hs/k-space/at/etc.)
+                                                <span>No resources available</span>
+                                            }
+                                            @* <div class="row">
+                                                <div class="col-md-6 text-center">
+                                                    <b>Required Superionic Ice / Hour</b>
+                                                    <text>N/A</text>
+                                                </div>
+                                                <div class="col-md-6 text-center">
+                                                    <b>Required Magmatic Gas / Hour</b>
+                                                    <text>N/A</text>
+                                                </div>
+                                            </div> *@
+                                        }
+                                    </RadzenCard>
+                                </div>
+                            </div>
+                        }
+                    </Template>
+                    <Columns>
+                        <RadzenDataGridColumn Property="Id" Title="System ID" />
+                        <RadzenDataGridColumn Property="Name" Title="System Name" />
+                        <RadzenDataGridColumn Property="TotalPower" Title="Total Power" />
+                        <RadzenDataGridColumn Property="TotalWorkforce" Title="Total Workforce" />
+                        <RadzenDataGridColumn Property="SuperionicRate" Title="Total Superionic Ice / Hour" />
+                        <RadzenDataGridColumn Property="MagmaticRate" Title="Total Magmatic Gas / Hour" />
+                    </Columns>
+                </RadzenDataGrid>
+            </Template>
+            <Columns>
+                <RadzenDataGridColumn Property="Id" Title="Constellation ID" />
+                <RadzenDataGridColumn Property="Name" Title="Constellation Name" />
+                <RadzenDataGridColumn Property="TotalPower" Title="Total Power" />
+                <RadzenDataGridColumn Property="TotalWorkforce" Title="Total Workforce" />
+                <RadzenDataGridColumn Property="SuperionicRate" Title="Total Superionic Ice / Hour" />
+                <RadzenDataGridColumn Property="MagmaticRate" Title="Total Magmatic Gas / Hour" />
+            </Columns>
+        </RadzenDataGrid>
+    </Template>
+    <Columns>
+        <RadzenDataGridColumn Property="Id" Title="Region ID" />
+        <RadzenDataGridColumn Property="Name" Title="Region Name" />
+        <RadzenDataGridColumn Property="TotalPower" Title="Total Power" />
+        <RadzenDataGridColumn Property="TotalWorkforce" Title="Total Workforce" />
+        <RadzenDataGridColumn Property="SuperionicRate" Title="Total Superionic Ice / Hour" />
+        <RadzenDataGridColumn Property="MagmaticRate" Title="Total Magmatic Gas / Hour" />
+    </Columns>
+</RadzenDataGrid>
+
+@code{
+    private bool IsLoading { get; set; }
+    private bool IsConstellationLoading { get; set; }
+    private bool IsSystemsLoading { get; set; }
+    private bool IsResourcesLoading { get; set; }
+    private bool IsCalculatingResources { get; set; }
+
+    private int SelectedUpgradeFilter { get; set; }
+    private int SelectedPowerRequirement 
+    {
+        get 
+        {
+            if (!SelectedUpgrades.Any()) return default;
+
+            return SelectedUpgrades.Sum(u => u.Power);
+        }
+    }
+    private int SelectedWorkforceRequirement 
+    {
+        get 
+        {
+            if (!SelectedUpgrades.Any()) return default;
+
+            return SelectedUpgrades.Sum(u => u.Workforce);
+        }
+    }
+    private int SelectedSuperionicRate 
+    {
+        get 
+        {
+            if (!SelectedUpgrades.Any()) return default;
+
+            return SelectedUpgrades.Sum(u => u.SuperionicRate);
+        }
+    }
+
+    private int SelectedMagmaticRate 
+    {
+        get 
+        {
+            if (!SelectedUpgrades.Any()) return default;
+
+            return SelectedUpgrades.Sum(u => u.MagmaticRate);
+        }
+    }
+
+    private List<RegionDto> Regions { get; set; } = [];
+    private List<ConstellationDto> Constellations { get; set; } = [];
+    private List<SystemDto> Systems { get; set; } = [];
+    private List<UpgradeDto> PossibleUpgrades { get; set; } = [];
+    private IEnumerable<UpgradeDto> SelectedUpgrades { get; set; } = [];
+    private ResourceDto? SystemResources { get; set; }
+    private CalculatedResourceDto? CalculatedResources { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        IsLoading = true;
+
+        try
+        {
+            Regions = await RegionService.GetAllRegions();
+            PossibleUpgrades = await Upgrades.GetUpgrades();
+        }
+        catch (Exception)
+        {
+
+        }
+        IsLoading = false;
+    }
+
+    private async Task RegionRowExpand(RegionDto region)
+    {
+        IsConstellationLoading = true;
+        try
+        {
+            Constellations = await ConstellationService.GetConstellationsForRegion(region.Id);
+        }
+        catch (Exception)
+        {
+
+        }
+        IsConstellationLoading = false;
+    }
+
+    private async Task ConstellationRowExpand(ConstellationDto constellation)
+    {
+        IsSystemsLoading = true;
+        try
+        {
+            Systems = await SystemService.GetSystemsForConstellation(constellation.Id);
+        }
+        catch (Exception)
+        {
+
+        }
+        IsSystemsLoading = false;
+    }
+
+    private async Task SystemRowExpand(SystemDto system)
+    {
+        IsResourcesLoading = true;
+        try
+        {
+            SystemResources = await SystemService.GetResourcesForSystem(system.Id);
+        }
+        catch (Exception)
+        {
+
+        }
+        IsResourcesLoading = false;
+    }
+
+    private async Task CalculateSystemUpgrades(int solarSystemId)
+    {
+        IsCalculatingResources = true;
+        try
+        {
+            // TODO: Restrict them spamming the calculation when same solar system AND same filter
+            // They can refresh the page if they expect sov changes...
+            CalculatedResources = await Resources.CalculateAvailableResources(solarSystemId, (RestrictionFilter)SelectedUpgradeFilter);
+        }
+        catch (Exception)
+        {
+
+        }
+        IsCalculatingResources = false;
+    }
+
+    private string GetResourceCssColor(int selected, int allowed)
+    {
+        if (selected > allowed) return "text-danger";
+        return "";
+    }
+}

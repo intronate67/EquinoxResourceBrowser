@@ -1,0 +1,497 @@
+﻿@page "/resource_updates"
+@using ClosedXML.Excel
+@using EquinoxResourceBrowser.Dtos
+@using EquinoxResourceBrowser.Dtos.Resources
+@using EquinoxResourceBrowser.Interfaces
+@using Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage
+
+@inject ProtectedSessionStorage SessionStore
+@inject IPasswordHasher PasswordHasher
+@inject IResourceService Resources
+
+@implements IDisposable
+
+<PageTitle>Resource Updater</PageTitle>
+
+@if (!IsAuthenticated)
+{
+    <RadzenStack Orientation="Orientation.Vertical" Gap="1rem" AlignItems="AlignItems.Center">
+        <RadzenLabel Text="Enter password to continue" />
+        <RadzenPassword @bind-Value=Password aria-label="Enter password" class="w-50" />
+        @if (!string.IsNullOrEmpty(ErrorMessage))
+        {
+            <p class="text-danger w-50">@ErrorMessage</p>
+        }
+        <RadzenButton Text="Submit" Click="VerifyPassword" class="w-50" />
+    </RadzenStack>
+}
+else
+{
+    <div class="d-flex justify-content-between">
+        <h3>Resource Update Center</h3>
+        <RadzenButton Text="Logout" Click="Logout" />
+    </div>
+    <div class="my-2">
+        @if (!string.IsNullOrEmpty(ErrorMessage))
+        {
+            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                <strong>@ErrorMessage</strong>
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close" @onclick="@(() => { ErrorMessage = null; })"></button>
+            </div>
+        }
+        <!-- Place to upload excel and view the potential updates -->
+        <RadzenCard>
+            <RadzenText TextStyle="TextStyle.Subtitle2" TagName="TagName.H3">Resource Excel File Upload</RadzenText>
+            <RadzenUpload class="w-100" Change="OnFileUpload" InputAttributes="@(new Dictionary<string,object>(){ { "aria-label", "select file" }})">
+            </RadzenUpload>
+        </RadzenCard>
+    </div>
+    <RadzenTabs @bind-SelectedIndex=SelectedTabIndex>
+        <Tabs>
+            <RadzenTabsItem Text="Stars">
+                <RadzenStack Orientation="Orientation.Vertical">
+                    @if (StarResources.Count > 0)
+                    {
+                        @if (IsSavingStars)
+                        {
+                            <div class="d-flex">
+                                <RadzenProgressBar @bind-Value="StarProgress" Max="StarResources.GroupBy(p => p.RegionName).Count()" Unit="@($" out of {StarResources.GroupBy(p => p.RegionName).Count()}")" class="flex-fill m-2" />
+                                <RadzenButton Text="Cancel Update" Click="CancelStars" class="p-2" />
+                                <RadzenButton Text="Update Stars" Disabled="true" class="p-2" />
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="d-flex justify-content-end">
+                                <RadzenButton Text="Update Stars" Click="SaveStars" />
+                            </div>
+                        }
+                    }
+                    <RadzenDataGrid IsLoading=IsLoading Data="StarResources" AllowSorting="true" AllowPaging="true" PageSize="10">
+                        <Columns>
+                            <RadzenDataGridColumn Property="StarId" Title="Star ID" />
+                            <RadzenDataGridColumn Property="RegionName" Title="Region Name" />
+                            <RadzenDataGridColumn Property="SolarSystemName" Title="System Name" />
+                            <RadzenDataGridColumn Property="StarName" Title="Star" />
+                            <RadzenDataGridColumn Property="Power" Title="Power" />
+                        </Columns>
+                    </RadzenDataGrid>
+                </RadzenStack>
+            </RadzenTabsItem>
+            <RadzenTabsItem Text="Planets">
+                <RadzenStack Orientation="Orientation.Vertical">
+                    @if (PlanetResources.Count > 0)
+                    {
+                        @if (IsSavingPlanets)
+                        {
+                            <div class="d-flex">
+                                <RadzenProgressBar @bind-Value="PlanetProgress" Max="PlanetResources.GroupBy(p => p.SolarSystemName).Count()" Unit="@($" out of {PlanetResources.GroupBy(p => p.SolarSystemName).Count()}")" class="flex-fill m-2" />
+                                <RadzenButton Text="Cancel Update" Click="CancelPlanets" class="p-2" />
+                                <RadzenButton Text="Update Planets" Disabled="true" class="p-2" />
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="d-flex justify-content-end">
+                                <RadzenButton Text="Update Planets" Click="SavePlanets" />
+                            </div>
+                        }
+                    }
+                    <RadzenDataGrid IsLoading=IsLoading Data="PlanetResources" AllowSorting="true" AllowPaging="true" PageSize="10">
+                        <Columns>
+                            <RadzenDataGridColumn Property="PlanetId" Title="Planet ID" />
+                            <RadzenDataGridColumn Property="RegionName" Title="Region Name" />
+                            <RadzenDataGridColumn Property="SolarSystemName" Title="System Name" />
+                            <RadzenDataGridColumn Property="PlanetName" Title="Planet Name" />
+                            <RadzenDataGridColumn Property="Power" Title="Power" />
+                            <RadzenDataGridColumn Property="Workforce" Title="Workforce" />
+                            <RadzenDataGridColumn Property="SuperionicRate" Title="Superionic Ice / Hour" />
+                            <RadzenDataGridColumn Property="MagmaticRate" Title="Magmatic Gas / Hour" />
+                        </Columns>
+                    </RadzenDataGrid>
+                </RadzenStack>
+            </RadzenTabsItem>
+            <RadzenTabsItem Text="Upgrades">
+                <RadzenStack Orientation="Orientation.Vertical">
+                    @if(UpgradeResources.Count > 0)
+                    {
+                        @if (IsSavingUpgrades)
+                        {
+                            <div class="d-flex">
+                                <RadzenProgressBar @bind-Value="UpgradeProgress" Max="UpgradeResources.Count" Unit="@($" out of {UpgradeResources.Count}")" class="flex-fill m-2" />
+                                <RadzenButton Text="Cancel Update" Click="CancelUpgrades" class="p-2" />
+                                <RadzenButton Text="Update Upgrades" Disabled="true" class="p-2" />
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="d-flex justify-content-end">
+                                <RadzenButton Text="Update Upgrades" Click="SaveUpgrades" />
+                            </div>
+                        }
+                    }
+                    <RadzenDataGrid IsLoading=IsLoading Data="UpgradeResources" AllowSorting="true" AllowPaging="true" PageSize="10">
+                        <Columns>
+                            <RadzenDataGridColumn Property="TypeId" Title="Type ID" />
+                            <RadzenDataGridColumn Property="UpgradeName" Title="Upgrade Name" />
+                            <RadzenDataGridColumn Property="Power" Title="Power" />
+                            <RadzenDataGridColumn Property="Workforce" Title="Workforce" />
+                            <RadzenDataGridColumn Property="SuperionicRate" Title="Superionic Ice / Hour" />
+                            <RadzenDataGridColumn Property="MagmaticRate" Title="Magmatic Gas / Hour" />
+                        </Columns>
+                    </RadzenDataGrid>
+                </RadzenStack>
+            </RadzenTabsItem>
+        </Tabs>
+    </RadzenTabs>
+}
+
+@code {
+    private bool IsAuthenticated = false;
+    private bool IsLoading { get; set; }
+    private bool IsSavingUpgrades { get; set; }
+    private bool IsSavingStars { get; set; }
+    private bool IsSavingPlanets { get; set; }
+
+    private CancellationTokenSource CancelUpgradeToken = new();
+    private CancellationTokenSource CancelStarToken = new();
+    private CancellationTokenSource CancelPlanetToken = new();
+
+    private int SelectedTabIndex { get; set; }
+
+    private double UpgradeProgress { get; set; }
+    private double StarProgress { get; set; }
+    private double PlanetProgress { get; set; }
+
+    private string Password { get; set; } = string.Empty;
+    private string? ErrorMessage { get; set; }
+
+    private List<StarResource> StarResources { get; set; } = [];
+    private List<PlanetResource> PlanetResources { get; set; } = [];
+    private List<UpgradeResource> UpgradeResources { get; set; } = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        var isAuthenticatedResult = await SessionStore.GetAsync<bool>("is_authed");
+
+        if(isAuthenticatedResult.Success && isAuthenticatedResult.Value)
+        {
+            IsAuthenticated = true;
+        }
+    }
+
+    private async Task VerifyPassword()
+    {
+        if (string.IsNullOrEmpty(Password))
+        {
+            IsAuthenticated = false;
+            ErrorMessage = "Password is required";
+            return;
+        }
+
+        if (Password.Length < 255 && await PasswordHasher.VerifyPassword(Password))
+        {
+            ErrorMessage = null;
+            IsAuthenticated = true;
+
+            await SessionStore.SetAsync("is_authed", true);
+            return;
+        }
+
+        IsAuthenticated = false;
+        ErrorMessage = "Invalid password";
+    }
+
+    private async Task Logout()
+    {
+        await SessionStore.SetAsync("is_authed", false);
+        IsAuthenticated = false;
+    }
+
+    private async Task OnFileUpload(UploadChangeEventArgs args)
+    {
+        if (args.Files.Any())
+        {
+            var excelFile = args.Files.FirstOrDefault(p => Path.GetExtension(p.Name).ToLower().Equals(".xlsx"));
+
+            if(excelFile is null)
+            {
+                ErrorMessage = "Invalid file type";
+            }
+            else
+            {
+                IsLoading = true;
+                try
+                {
+                    using var ms = new MemoryStream();
+                    await excelFile.OpenReadStream(1200000).CopyToAsync(ms);
+
+                    ms.Position = 0;
+
+                    using (var workbook = new XLWorkbook(ms))
+                    {
+                        StarResources = GetStarsFromSheet(workbook);
+                        PlanetResources = GetPlanetsFromSheet(workbook);
+                        UpgradeResources = GetUpgradesFromSheet(workbook);
+                    }
+                    ErrorMessage = null;
+                }
+                catch (Exception ex)
+                {
+                    // todo: display failed toast message
+                    ErrorMessage = ex.Message;
+                }
+
+                IsLoading = false;
+            }
+        }
+    }
+
+    private List<StarResource> GetStarsFromSheet(IXLWorkbook workbook)
+    {
+        var stars = new List<StarResource>();
+        if (workbook.TryGetWorksheet("Stars", out var starSheet))
+        {
+            var range = starSheet.RangeUsed();
+
+            for (int i = 2; i < range.RowCount() + 1; i++)
+            {
+                stars.Add(new StarResource
+                    {
+                        StarId = starSheet.Cell(i, 1).GetValue<int>(),
+                        RegionName = starSheet.Cell(i, 2).GetValue<string>(),
+                        SolarSystemName = starSheet.Cell(i, 3).GetValue<string>(),
+                        StarName = starSheet.Cell(i, 4).GetValue<string>(),
+                        Power = starSheet.Cell(i, 5).GetValue<int>()
+                    });
+            }
+        }
+
+        return stars;
+    }
+
+    private List<PlanetResource> GetPlanetsFromSheet(IXLWorkbook workbook)
+    {
+        var planets = new List<PlanetResource>();
+        if (workbook.TryGetWorksheet("Planets", out var planetSheet))
+        {
+            var range = planetSheet.RangeUsed();
+
+            for (int i = 2; i < range.RowCount() + 1; i++)
+            {
+                planets.Add(new PlanetResource
+                    {
+                        PlanetId = planetSheet.Cell(i, 1).GetValue<int>(),
+                        RegionName = planetSheet.Cell(i, 2).GetValue<string>(),
+                        SolarSystemName = planetSheet.Cell(i, 3).GetValue<string>(),
+                        PlanetName = planetSheet.Cell(i, 4).GetValue<string>(),
+                        Power = planetSheet.Cell(i, 5).GetValue<int>(),
+                        Workforce = planetSheet.Cell(i, 6).GetValue<int>(),
+                        SuperionicRate = planetSheet.Cell(i, 7).GetValue<int>(),
+                        MagmaticRate = planetSheet.Cell(i, 8).GetValue<int>()
+                    });
+            }
+        }
+        return planets;
+    }
+
+    private List<UpgradeResource> GetUpgradesFromSheet(IXLWorkbook workbook)
+    {
+        var upgrades = new List<UpgradeResource>();
+        if (workbook.TryGetWorksheet("Upgrades", out var upgradeSheet))
+        {
+            var range = upgradeSheet.RangeUsed();
+
+            for (int i = 2; i < range.RowCount() + 1; i++)
+            {
+                upgrades.Add(new UpgradeResource
+                    {
+                        TypeId = upgradeSheet.Cell(i, 1).GetValue<int>(),
+                        UpgradeName = upgradeSheet.Cell(i, 2).GetValue<string>(),
+                        Power = upgradeSheet.Cell(i, 3).GetValue<int>(),
+                        Workforce = upgradeSheet.Cell(i, 4).GetValue<int>(),
+                        SuperionicRate = upgradeSheet.Cell(i, 5).GetValue<int>(),
+                        MagmaticRate = upgradeSheet.Cell(i, 6).GetValue<int>()
+                    });
+            }
+        }
+        return upgrades;
+    }
+
+    private async Task SaveUpgrades()
+    {
+        IsSavingUpgrades = true;
+        UpgradeProgress = 0;
+
+        if (CancelUpgradeToken.IsCancellationRequested)
+        {
+            CancelUpgradeToken.Dispose();
+            CancelUpgradeToken = new();
+        }
+
+        try
+        {
+            await Task.Run(async () =>
+            {
+                for (int i = 0; i < UpgradeResources.Count; i++)
+                {
+                    if (CancelUpgradeToken.Token.IsCancellationRequested)
+                    {
+                        break;
+                    }
+
+                    var success = await Resources.SaveUpgrade(UpgradeResources[i], CancelUpgradeToken.Token);
+                    if (!success)
+                    {
+                        ErrorMessage = "Update failed";
+                        await InvokeAsync(() =>
+                        {
+                            StateHasChanged();
+                        });
+                        break;
+                    }
+                    UpgradeProgress = i + 1;
+
+                    await InvokeAsync(() =>
+                    {
+                        StateHasChanged();
+                    });
+
+                    await Task.Delay(1000);
+                }
+            }, CancelUpgradeToken.Token);
+        }
+        catch (Exception)
+        {
+
+        }
+        IsSavingUpgrades = false;
+    }
+
+    private async Task CancelUpgrades()
+    {
+        await CancelUpgradeToken.CancelAsync();
+    }
+
+    private async Task SavePlanets()
+    {
+        IsSavingPlanets = true;
+        PlanetProgress = 0;
+
+        if (CancelPlanetToken.IsCancellationRequested)
+        {
+            CancelPlanetToken.Dispose();
+            CancelPlanetToken = new();
+        }
+
+        try
+        {
+            await Task.Run(async () =>
+            {
+                var groups = PlanetResources.GroupBy(p => p.SolarSystemName).ToList();
+                for(int i = 0; i < groups.Count; i++)
+                {
+                    if (CancelPlanetToken.Token.IsCancellationRequested)
+                    {
+                        break;
+                    }
+
+                    var group = groups[i];
+
+                    var success = await Resources.SavePlanets(group, CancelPlanetToken.Token);
+                    if (!success)
+                    {
+                        ErrorMessage = "Failed to ingest planets";
+                        await InvokeAsync(() =>
+                        {
+                            StateHasChanged();
+                        });
+                        break;
+                    }
+
+                    PlanetProgress = i + 1;
+
+                    await InvokeAsync(() =>
+                    {
+                        StateHasChanged();
+                    });
+                }
+            }, CancelPlanetToken.Token);
+        }
+        catch (Exception)
+        {
+
+        }
+        IsSavingPlanets = false;
+    }
+
+    private async Task CancelPlanets()
+    {
+        await CancelPlanetToken.CancelAsync();
+    }
+
+    private async Task SaveStars()
+    {
+        IsSavingStars = true;
+        StarProgress = 0;
+
+        if (CancelStarToken.IsCancellationRequested)
+        {
+            CancelStarToken.Dispose();
+            CancelStarToken = new();
+        }
+
+        try
+        {
+            await Task.Run(async () =>
+            {
+                var groups = StarResources.GroupBy(p => p.RegionName).ToList();
+                for (int i = 0; i < groups.Count; i++)
+                {
+                    if (CancelStarToken.Token.IsCancellationRequested)
+                    {
+                        break;
+                    }
+
+                    var group = groups[i];
+
+                    var success = await Resources.SaveStars(group, CancelStarToken.Token);
+                    if (!success)
+                    {
+                        ErrorMessage = "Failed to ingest stars";
+                        await InvokeAsync(() =>
+                        {
+                            StateHasChanged();
+                        });
+                        break;
+                    }
+
+                    StarProgress = i + 1;
+
+                    await InvokeAsync(() =>
+                    {
+                        StateHasChanged();
+                    });
+                }
+            }, CancelStarToken.Token);
+        }
+        catch (Exception)
+        {
+
+        }
+        IsSavingStars = false;
+    }
+
+
+    private async Task CancelStars()
+    {
+        await CancelStarToken.CancelAsync();
+    }
+
+    public void Dispose()
+    {
+        CancelUpgradeToken.Dispose();
+        CancelStarToken.Dispose();
+        CancelPlanetToken.Dispose();
+    }
+}
