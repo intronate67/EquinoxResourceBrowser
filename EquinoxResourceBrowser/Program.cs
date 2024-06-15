@@ -18,8 +18,19 @@ public class Program
 
         builder.Services.AddRazorComponents();
 
-        var connectionString = builder.Configuration.GetConnectionString("ResourceDb") 
+        string connectionString;
+
+        if (builder.Environment.IsDevelopment())
+        {
+            connectionString = builder.Configuration.GetConnectionString("ResourceDb")
             ?? throw new InvalidOperationException("Connection string 'ResourceDb' not found.");
+        }
+        else
+        {
+            connectionString = builder.Configuration.GetConnectionString("AZURE_SQL_CONNECTIONSTRING")
+            ?? throw new InvalidOperationException("Connection string 'AZURE_SQL_CONNECTIONSTRING' not found.");
+        }
+
         builder.Services.AddDbContextFactory<ResourceContext>(options => options.UseSqlServer(connectionString));
 
         builder.Services.AddRefitClient<IEsiClient>()
