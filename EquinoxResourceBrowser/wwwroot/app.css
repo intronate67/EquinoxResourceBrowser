@@ -49,3 +49,9 @@ h1:focus {
 .darker-border-checkbox.form-check-input {
     border-color: #929292;
 }
+
+.scrollable-resources {
+    max-height: 500px;
+    overflow-y: scroll;
+    overflow-x: hidden;
+}

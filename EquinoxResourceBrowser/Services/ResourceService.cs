@@ -151,7 +151,8 @@ namespace EquinoxResourceBrowser.Services
             {
                 if (visited.Contains(connectedSystem.SolarSystem.SolarSystemId)) continue;
 
-                result.TotalPower += connectedSystem.Star.Power + connectedSystem.Planet.Power ?? 0;
+                // Do not add power since it cannot be transfered between solar systems
+                //result.TotalPower += connectedSystem.Star.Power + connectedSystem.Planet.Power ?? 0;
                 result.TotalWorkforce += connectedSystem.Planet.Workforce ?? 0;
 
                 await TraverseConnectedSystems(connectedSystem.SolarSystem.SolarSystemId, visited,
