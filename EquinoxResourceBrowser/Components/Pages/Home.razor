@@ -4,6 +4,7 @@
 @using EquinoxResourceBrowser.Interfaces
 
 @inject IConstellationService ConstellationService
+@inject IJSRuntime JS
 @inject IResourceService Resources
 @inject IRegionService RegionService
 @inject ISystemService SystemService
@@ -17,10 +18,11 @@
                 AllowSorting="true"
                 AllowFiltering="true"
                 Data="Regions"
-                ExpandMode="DataGridExpandMode.Single" 
+                ExpandMode="DataGridExpandMode.Single"
                 ShowExpandColumn="true"
                 TItem="RegionDto"
-                RowExpand="RegionRowExpand" class="mb-2">
+                RowExpand="@((r) => RegionRowExpand(r.Id))" class="mb-2"
+                @ref=RegionGrid>
     <Template Context="region">
         <RadzenCard Style="margin-bottom:20px">
             Region:
@@ -36,7 +38,8 @@
                         ExpandMode="DataGridExpandMode.Single"
                         ShowExpandColumn="true"
                         TItem="ConstellationDto"
-                        RowExpand="ConstellationRowExpand">
+                        RowExpand="@((c) => ConstellationRowExpand(c.Id))"
+                        @ref=ConstellationGrid>
             <Template Context="constellation">
                 <RadzenCard Style="margin-bottom:20px">
                     Constellation:
@@ -51,7 +54,8 @@
                                 ExpandMode="DataGridExpandMode.Single"
                                 ShowExpandColumn="true"
                                 TItem="SystemDto"
-                                RowExpand="SystemRowExpand">
+                                RowExpand="@((s) => SystemRowExpand(s.Id))"
+                                @ref=SystemGrid>
                     <Template Context="system">
                         @if(SystemResources is not null)
                         {
@@ -109,7 +113,8 @@
                                                     PageSize="10"
                                                     AllowPaging="true"
                                                     AllowSorting="true"
-                                                    AllowFiltering="true">
+                                                    AllowFiltering="true"
+                                                    id="planet-table">
                                         <Columns>
                                             <RadzenDataGridColumn CssClass="text-center" Width="72px">
                                                 <Template Context="planet">
@@ -126,7 +131,7 @@
                                 </div>
                                 <div class="col-lg-4 mt-3 mt-lg-0">
                                     <RadzenCard class="">
-                                        <div class="d-flex scrollable-resources rz-background-color-base-200 rounded-1">
+                                        <div id="scrollable-resources" class="d-flex rz-background-color-base-200 rounded-1">
                                             <RadzenStack Orientation="Orientation.Vertical" class="w-100">
                                                 <RadzenLabel class="px-2 pt-2"><b>System Upgrades</b></RadzenLabel>
                                                 <RadzenFormField Text="Workforce Restriction" Variant="Variant.Outlined" class="px-2">
@@ -139,7 +144,7 @@
                                                         </Items>
                                                     </RadzenRadioButtonList>
                                                 </RadzenFormField>
-                                                <RadzenButton ButtonType="ButtonType.Button" class="mx-2 mb-2" Size="ButtonSize.Large" Disabled="IsCalculatingResources" Click="@(() => CalculateSystemUpgrades(system.Id))" Icon="autorenew" Text="Calculate" />
+                                                <RadzenButton id="btn-calc" ButtonType="ButtonType.Button" class="mx-2 mb-2" Size="ButtonSize.Large" Disabled="IsCalculatingResources" Click="@(() => CalculateSystemUpgrades(system.Id))" Icon="autorenew" Text="Calculate" />
                                                 @if (IsCalculatingResources)
                                                 {
                                                     <RadzenProgressBarCircular class="m-auto" Value="100" ShowValue="false" Mode="ProgressBarMode.Indeterminate" />
@@ -234,11 +239,22 @@
 </RadzenDataGrid>
 
 @code{
+    [CascadingParameter]
+    public SearchResultDto? SearchResult { get; set; }
+
+    private bool IsInit { get; set; }
     private bool IsLoading { get; set; }
     private bool IsConstellationLoading { get; set; }
     private bool IsSystemsLoading { get; set; }
     private bool IsResourcesLoading { get; set; }
     private bool IsCalculatingResources { get; set; }
+
+    private int? SelectedRegionId { get; set; }
+    private int? SelectedConstellationId { get; set; }
+    private int? SelectedSystemId { get; set; }
+
+    private int? PendingConstellationId { get; set; }
+    private int? PendingSystemId { get; set; }
 
     private int SelectedUpgradeFilter { get; set; }
     private int SelectedPowerRequirement 
@@ -287,6 +303,10 @@
     private ResourceDto? SystemResources { get; set; }
     private CalculatedResourceDto? CalculatedResources { get; set; }
 
+    private RadzenDataGrid<RegionDto>? RegionGrid { get; set; }
+    private RadzenDataGrid<ConstellationDto>? ConstellationGrid { get; set; }
+    private RadzenDataGrid<SystemDto>? SystemGrid { get; set; }
+
     protected override void OnInitialized()
     {
         IsLoading = true;
@@ -301,21 +321,32 @@
             finally
             {
                 IsLoading = false;
+                IsInit = true;
             }
 
             await InvokeAsync(StateHasChanged);
         });
     }
 
-    private void RegionRowExpand(RegionDto region)
+    protected override async Task OnParametersSetAsync()
+    {
+        if (IsInit && SearchResult != null && SearchResult.Type != SearchResultType.None) await NavigateToSearchResult(SearchResult);
+    }
+
+    private void RegionRowExpand(int regionId)
     {
         IsConstellationLoading = true;
+        SelectedRegionId = regionId;
 
         _ = Task.Run(async () =>
         {
             try
             {
-                Constellations = await ConstellationService.GetConstellationsForRegion(region.Id);
+                Constellations = await ConstellationService.GetConstellationsForRegion(regionId);
+                if(PendingConstellationId is not null && PendingConstellationId > 0)
+                {
+                    await FindAndExpandConstellation(PendingConstellationId.Value);
+                }
             }
             finally
             {
@@ -326,15 +357,20 @@
         });
     }
 
-    private void ConstellationRowExpand(ConstellationDto constellation)
+    private void ConstellationRowExpand(int constellationId)
     {
         IsSystemsLoading = true;
+        SelectedConstellationId = constellationId;
 
         _ = Task.Run(async () =>
         {
             try
             {
-                Systems = await SystemService.GetSystemsForConstellation(constellation.Id);
+                Systems = await SystemService.GetSystemsForConstellation(constellationId);
+                if (PendingSystemId is not null && PendingSystemId > 0)
+                {
+                    await FindAndExpandSystem(PendingSystemId.Value);
+                }
             }
             finally
             {
@@ -345,14 +381,16 @@
         });
     }
 
-    private void SystemRowExpand(SystemDto system)
+    private void SystemRowExpand(int solarSystemId)
     {
         IsResourcesLoading = true;
+        SelectedSystemId = solarSystemId;
+
         _ = Task.Run(async () =>
         {
             try
             {
-                SystemResources = await SystemService.GetResourcesForSystem(system.Id);
+                SystemResources = await SystemService.GetResourcesForSystem(solarSystemId);
             }
             finally
             {
@@ -370,6 +408,8 @@
         {
             try
             {
+                await JS.InvokeVoidAsync("calculateResourceHeight");
+
                 // TODO: Restrict them spamming the calculation when same solar system AND same filter
                 // They can refresh the page if they expect sov changes...
                 CalculatedResources = await Resources.CalculateAvailableResources(solarSystemId, (RestrictionFilter)SelectedUpgradeFilter);
@@ -381,6 +421,159 @@
 
             await InvokeAsync(StateHasChanged);
         });
+    }
+
+    private async Task NavigateToSearchResult(SearchResultDto searchResult)
+    {
+        var regionId = searchResult.Type == SearchResultType.Region ? searchResult.Id : searchResult.RegionId.HasValue ? searchResult.RegionId : null;
+        bool regionWasExpanded = false;
+        if (regionId is not null && regionId > 0)
+        {
+            var idx = Regions.FindIndex(r => r.Id == regionId);
+
+            if (idx != -1 && RegionGrid is not null)
+            {
+                // Clear current sort and filters
+                ClearSortAndFilters(RegionGrid.ColumnsCollection);
+
+                if (idx != -1)
+                {
+                    var pageIndex = (int)Math.Ceiling((idx + 1) / (double)RegionGrid.PageSize);
+
+                    if (pageIndex != (RegionGrid.CurrentPage + 1))
+                    {
+                        await RegionGrid.GoToPage(pageIndex - 1);
+                    }
+
+                    regionWasExpanded = RegionGrid.IsRowExpanded(Regions[idx]);
+                    if (SelectedRegionId != regionId || !regionWasExpanded)
+                    {
+                        await RegionGrid.ExpandRow(Regions[idx]);
+                    }
+                }
+            }
+        }
+        bool constellationWasExpanded = false;
+        if (regionWasExpanded)
+        {
+            constellationWasExpanded = await FindAndExpandConstellation(searchResult);
+            PendingConstellationId = null;
+        }
+        else
+        {
+            PendingConstellationId = searchResult.Type == SearchResultType.Constellation ? searchResult.Id : searchResult.ConstellationId;
+        }
+
+        bool systemWasExpanded = false;
+        if (constellationWasExpanded)
+        {
+            systemWasExpanded = await FindAndExpandSystem(searchResult);
+            PendingSystemId = null;
+        }
+        else if (searchResult.Type == SearchResultType.SolarSystem)
+        {
+            PendingSystemId = searchResult.Id;
+        }
+    }
+
+    private void ClearSortAndFilters<T>(IList<RadzenDataGridColumn<T>> columns)
+    {
+        foreach (var column in columns)
+        {
+            if (column.SortOrder != null)
+            {
+                column.SortOrder = null;
+            }
+
+            column.ClearFilters();
+        }
+    }
+
+    private async Task<bool> FindAndExpandConstellation(SearchResultDto searchResult)
+    {
+        bool constellationWasExpanded = false;
+        var constellationId = searchResult.Type == SearchResultType.Constellation ? searchResult.Id : searchResult.ConstellationId.HasValue ? searchResult.ConstellationId : null;
+        if (constellationId is not null && constellationId > 0)
+        {
+            var idx = Constellations.FindIndex(r => r.Id == constellationId);
+
+            if (idx != -1 && ConstellationGrid is not null)
+            {
+                await InvokeAsync(async () =>
+                {
+                    ClearSortAndFilters(ConstellationGrid.ColumnsCollection);
+
+                    var pageIndex = (int)Math.Ceiling((idx + 1) / (double)ConstellationGrid.PageSize);
+                    if (pageIndex != (ConstellationGrid.CurrentPage + 1))
+                    {
+                        await ConstellationGrid.GoToPage(pageIndex - 1);
+                    }
+
+                    constellationWasExpanded = ConstellationGrid.IsRowExpanded(Constellations[idx]);
+                    if (SelectedConstellationId != constellationId || !constellationWasExpanded)
+                    {
+                        await ConstellationGrid.ExpandRow(Constellations[idx]);
+                    }
+                });
+
+            }
+        }
+        return constellationWasExpanded;
+    }
+
+    private async Task<bool> FindAndExpandSystem(SearchResultDto searchResult)
+    {
+        bool systemWasExpanded = false;
+
+        var solarSystemId = searchResult.Type == SearchResultType.SolarSystem ? searchResult.Id : 0;
+        if (solarSystemId > 0)
+        {
+            var idx = Systems.FindIndex(r => r.Id == solarSystemId);
+
+            if (idx != -1 && SystemGrid is not null)
+            {
+                await InvokeAsync(async () =>
+                {
+                    ClearSortAndFilters(SystemGrid.ColumnsCollection);
+
+                    var pageIndex = (int)Math.Ceiling((idx + 1) / (double)SystemGrid.PageSize);
+
+                    if (pageIndex != (SystemGrid.CurrentPage + 1))
+                    {
+                        await SystemGrid.GoToPage(pageIndex - 1);
+                    }
+
+                    systemWasExpanded = SystemGrid.IsRowExpanded(Systems[idx]);
+                    if (SelectedSystemId != solarSystemId || !systemWasExpanded)
+                    {
+                        await SystemGrid.ExpandRow(Systems[idx]);
+                    }
+                });
+            }
+        }
+        
+        return systemWasExpanded;
+    }
+
+    private async Task FindAndExpandConstellation(int constellationId)
+    {
+        await FindAndExpandConstellation(new SearchResultDto
+        {
+            Type = SearchResultType.Constellation,
+            ConstellationId = constellationId,
+            Id = constellationId
+        });
+        PendingConstellationId = null;
+    }
+
+    private async Task FindAndExpandSystem(int systemId)
+    {
+        await FindAndExpandSystem(new SearchResultDto
+            {
+                Type = SearchResultType.SolarSystem,
+                Id = systemId
+            });
+        PendingSystemId = null;
     }
 
     private string GetResourceCssColor(int selected, int allowed)

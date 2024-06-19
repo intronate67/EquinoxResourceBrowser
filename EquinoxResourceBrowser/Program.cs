@@ -2,6 +2,7 @@ using EquinoxResourceBrowser.Components;
 using EquinoxResourceBrowser.Data;
 using EquinoxResourceBrowser.Interfaces;
 using EquinoxResourceBrowser.Services;
+using EquinoxResourceBrowser.Services.Synchronization;
 using Microsoft.EntityFrameworkCore;
 using Refit;
 
@@ -43,16 +44,18 @@ public class Program
                 client.DefaultRequestHeaders.UserAgent
                     .TryParseAdd("Equinox Resource Browser; Contact: admin@killboard.space; IGN: Wiener Johnson");
             }).AddStandardResilienceHandler();
+        
+        builder.Services.AddMemoryCache();
 
         //builder.Services.AddHostedService<RegionSync>();
         //builder.Services.AddHostedService<ConstellationSync>();
         //builder.Services.AddHostedService<SolarSystemSync>();
         //builder.Services.AddHostedService<PlanetSync>();
         //builder.Services.AddHostedService<StarSync>();
-        //builder.Services.AddHostedService<SovereigntySync>();
+        builder.Services.AddHostedService<SovereigntySync>();
         //builder.Services.AddHostedService<TypeSync>();
-        //builder.Services.AddHostedService<AllianceSync>();
-        //builder.Services.AddHostedService<CorporationSync>();
+        builder.Services.AddHostedService<AllianceSync>();
+        builder.Services.AddHostedService<CorporationSync>();
         //builder.Services.AddHostedService<FactionSync>();
         //builder.Services.AddHostedService<StargateSync>();
 
@@ -60,6 +63,7 @@ public class Program
         builder.Services.AddScoped<IPasswordHasher, PasswordHasher>();
         builder.Services.AddScoped<IRegionService, RegionService>();
         builder.Services.AddScoped<IResourceService, ResourceService>();
+        builder.Services.AddScoped<ISearchService, SearchService>();
         builder.Services.AddScoped<ISystemService, SystemService>();
         builder.Services.AddScoped<IUpgradeService, UpgradeService>();
 

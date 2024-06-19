@@ -50,8 +50,7 @@ h1:focus {
     border-color: #929292;
 }
 
-.scrollable-resources {
-    max-height: 500px;
+#scrollable-resources {
     overflow-y: scroll;
     overflow-x: hidden;
 }
