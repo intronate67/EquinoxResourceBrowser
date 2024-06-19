@@ -1,0 +1,60 @@
+﻿@using EquinoxResourceBrowser.Dtos
+@using EquinoxResourceBrowser.Interfaces
+
+@inherits OwningComponentBase<ISearchService>
+
+<div class="container-fluid">
+    <a class="navbar-brand" href="">Resource Browser</a>
+    <div>
+        <RadzenLabel Text="Navigate To:" class="text-white" Component="DropDownVirtualization" />
+        <RadzenDropDown Value=SelectedResult
+                        TValue="SearchResultDto"
+                        ValueChanged="SelectedResultChanged"
+                        AllowClear="true"
+                        AllowVirtualization="true" 
+                        Name="DropDownVirtualization"
+                        AllowFiltering="true"
+                        FilterCaseSensitivity="FilterCaseSensitivity.CaseInsensitive"
+                        FilterOperator="StringFilterOperator.Contains"
+                        FilterDelay="50"
+                        FilterPlaceholder="Search..."
+                        VirtualizationOverscanCount="5"
+                        Data=SearchResults
+                        TextProperty="Name" />
+    </div>
+</div>
+
+@code {
+    [Parameter]
+    public SearchResultDto? SelectedResult { get; set; }
+
+    [Parameter]
+    public EventCallback<SearchResultDto> SelectedResultChanged { get; set; }
+
+    private int Count { get; set; }
+    private string LastFilter { get; set; } = string.Empty;
+    private IEnumerable<SearchResultDto> SearchResults { get; set; } = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        SearchResults = await Service.LoadUniverse();
+    }
+
+    // private async Task LoadUniverse(LoadDataArgs args)
+    // {
+    //     if (!string.IsNullOrEmpty(args.Filter) && LastFilter != args.Filter)
+    //     {
+    //         args.Skip = 0;
+    //     }
+
+    //     if (!string.IsNullOrEmpty(args.Filter))
+    //     {
+    //         LastFilter = args.Filter;
+    //         SearchResults = SearchResults.Where(c => c.Name.ToLower().Contains(args.Filter.ToLower()));
+    //     }
+
+    //     Count = await Task.FromResult(SearchResults.Count());
+
+    //     SearchResults = await Task.FromResult(SearchResults.Skip(args.Skip.HasValue ? args.Skip.Value : 0).Take(args.Top.HasValue ? args.Top.Value : 10).ToList());
+    // }
+}

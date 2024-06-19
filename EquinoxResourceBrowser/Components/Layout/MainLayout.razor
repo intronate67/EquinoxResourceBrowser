@@ -1,16 +1,17 @@
-﻿@inherits LayoutComponentBase
+﻿@using EquinoxResourceBrowser.Dtos
+@inherits LayoutComponentBase
 
 <div class="page">
     <main>
         <div class="top-row navbar navbar-dark">
-            <div class="container-fluid">
-                <a class="navbar-brand" href="">Resource Browser</a>
-            </div>
+            <TopRow SelectedResultChanged="OnSearchChange" />
         </div>
+        <CascadingValue Value=CascadingSearchResult>
+            <article class="content px-4">
+                @Body
+            </article>
+        </CascadingValue>
 
-        <article class="content px-4">
-            @Body
-        </article>
     </main>
 </div>
 
@@ -19,3 +20,12 @@
     <a href="" class="reload">Reload</a>
     <a class="dismiss">🗙</a>
 </div>
+
+@code{
+    private SearchResultDto? CascadingSearchResult { get; set; }
+
+    private void OnSearchChange(SearchResultDto searchResult)
+    {
+        CascadingSearchResult = searchResult;
+    }
+}
