@@ -230,7 +230,7 @@
     </Template>
     <Columns>
         <RadzenDataGridColumn Property="Id" Title="Region ID" />
-        <RadzenDataGridColumn Property="Name" Title="Region Name" />
+        <RadzenDataGridColumn Property="Name" SortOrder="SortOrder.Ascending" Title="Region Name" />
         <RadzenDataGridColumn Property="TotalPower" Title="Total Power" FormatString="{0:n0} TW" />
         <RadzenDataGridColumn Property="TotalWorkforce" Title="Total Workforce" FormatString="{0:n0}" />
         <RadzenDataGridColumn Property="SuperionicRate" Title="Total Superionic Ice / Hour" FormatString="{0:n0}/hr" />
@@ -313,16 +313,11 @@
 
         _ = Task.Run(async () =>
         {
-            try
-            {
-                Regions = await RegionService.GetAllRegions();
-                PossibleUpgrades = await Upgrades.GetUpgrades();
-            }
-            finally
-            {
-                IsLoading = false;
-                IsInit = true;
-            }
+            Regions = await RegionService.GetAllRegions();
+            PossibleUpgrades = await Upgrades.GetUpgrades();
+            
+            IsLoading = false;
+            IsInit = true;
 
             await InvokeAsync(StateHasChanged);
         });

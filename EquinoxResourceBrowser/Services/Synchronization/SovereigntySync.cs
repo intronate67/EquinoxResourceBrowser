@@ -21,7 +21,7 @@ public class SovereigntySync : BackgroundService
     {
         _logger.LogInformation("Sovereignty synchronization started at: {Date}", DateTimeOffset.Now);
 
-        using var timer = new PeriodicTimer(TimeSpan.FromMinutes(15));
+        using var timer = new PeriodicTimer(TimeSpan.FromHours(1));
 
         await DoWork(stoppingToken);
 

@@ -18,8 +18,20 @@ public class ResourceContext : DbContext
     public DbSet<Stargate> Stargates { get; set; }
     public DbSet<Star> Stars { get; set; }
 
+    public DbSet<VRegion> RegionResources { get; set; }
+
     public ResourceContext(DbContextOptions<ResourceContext> options) : base(options)
     {
 
+    }
+
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        modelBuilder
+            .Entity<VRegion>(r =>
+            {
+                r.HasNoKey();
+                r.ToView("View_Regions");
+            });
     }
 }
