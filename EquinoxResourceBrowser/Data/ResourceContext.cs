@@ -18,7 +18,9 @@ public class ResourceContext : DbContext
     public DbSet<Stargate> Stargates { get; set; }
     public DbSet<Star> Stars { get; set; }
 
+    public DbSet<VConstellation> ConstellationResources { get; set; }
     public DbSet<VRegion> RegionResources { get; set; }
+    public DbSet<VSystem> SystemResources { get; set; }
 
     public ResourceContext(DbContextOptions<ResourceContext> options) : base(options)
     {
@@ -33,5 +35,17 @@ public class ResourceContext : DbContext
                 r.HasNoKey();
                 r.ToView("View_Regions");
             });
+
+        modelBuilder.Entity<VConstellation>(c =>
+        {
+            c.HasNoKey();
+            c.ToView("View_Constellations");
+        });
+
+        modelBuilder.Entity<VSystem>(s =>
+        {
+            s.HasNoKey();
+            s.ToView("View_Systems");
+        });
     }
 }

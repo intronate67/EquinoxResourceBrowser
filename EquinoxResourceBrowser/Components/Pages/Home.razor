@@ -93,7 +93,7 @@
                                         <img class="img-thumbnail" src="https://images.evetech.net/alliances/@system.SovereignFactionId.Value/logo" height="64" width="64" />
                                         <div class="align-self-center">
                                             Owned by Faction:
-                                            <b>@system.SovereignFacionName</b>
+                                            <b>@system.SovereignFactionName</b>
                                         </div>
                                     }
                                     <div class="align-self-center">
@@ -335,18 +335,12 @@
 
         _ = Task.Run(async () =>
         {
-            try
+            Constellations = await ConstellationService.GetConstellationsForRegion(regionId);
+            if (PendingConstellationId is not null && PendingConstellationId > 0)
             {
-                Constellations = await ConstellationService.GetConstellationsForRegion(regionId);
-                if(PendingConstellationId is not null && PendingConstellationId > 0)
-                {
-                    await FindAndExpandConstellation(PendingConstellationId.Value);
-                }
+                await FindAndExpandConstellation(PendingConstellationId.Value);
             }
-            finally
-            {
-                IsConstellationLoading = false;
-            }
+            IsConstellationLoading = false;
 
             await InvokeAsync(StateHasChanged);
         });
@@ -359,18 +353,13 @@
 
         _ = Task.Run(async () =>
         {
-            try
+            Systems = await SystemService.GetSystemsForConstellation(constellationId);
+            if (PendingSystemId is not null && PendingSystemId > 0)
             {
-                Systems = await SystemService.GetSystemsForConstellation(constellationId);
-                if (PendingSystemId is not null && PendingSystemId > 0)
-                {
-                    await FindAndExpandSystem(PendingSystemId.Value);
-                }
+                await FindAndExpandSystem(PendingSystemId.Value);
             }
-            finally
-            {
-                IsSystemsLoading = false;
-            }
+
+            IsSystemsLoading = false;
 
             await InvokeAsync(StateHasChanged);
         });
