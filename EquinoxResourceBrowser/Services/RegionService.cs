@@ -18,24 +18,23 @@ public class RegionService : IRegionService
 
     public async Task<List<RegionDto>> GetAllRegions()
     {
-        return await (from r in _ctx.Regions
-                    join c in _ctx.Constellations on r.RegionId equals c.RegionId
-                    join s in _ctx.SolarSystems on c.ConstellationId equals s.ConstellationId
-                    join p in _ctx.Planets on s.SolarSystemId equals p.SolarSystemId
-                    join st in _ctx.Stars on s.SolarSystemId equals st.SolarSystemId
-                    group new { p, st } by new { r.RegionId, r.Name } into grouping
-                    where (((grouping.Sum(r => r.p.Power) ?? 0) + (grouping.Select(g => g.st).First().Power ?? 0)) != 0
-                        && (grouping.Sum(r => r.p.Workforce) ?? 0) != 0
-                        && (grouping.Sum(r => r.p.SuperionicRate) ?? 0) != 0
-                        && (grouping.Sum(r => r.p.MagmaticRate) ?? 0) != 0)
-                    select new RegionDto
-                    {
-                        Id = grouping.Key.RegionId,
-                        Name = grouping.Key.Name,
-                        TotalPower = (grouping.Sum(r => r.p.Power) + (grouping.Select(g => g.st).First().Power ?? 0)) ?? 0,
-                        TotalWorkforce = grouping.Sum(r => r.p.Workforce) ?? 0,
-                        SuperionicRate = grouping.Sum(r => r.p.SuperionicRate) ?? 0,
-                        MagmaticRate = grouping.Sum(r => r.p.MagmaticRate) ?? 0
-                    }).ToListAsync();
+        try
+        {
+            return await _ctx.RegionResources.OrderBy(r => r.Name).Select(r => new RegionDto
+            {
+                Id = r.Id,
+                Name = r.Name,
+                TotalPower = r.TotalPower,
+                TotalWorkforce = r.TotalWorkforce,
+                SuperionicRate = r.TotalSuperionicIce,
+                MagmaticRate = r.TotalMagmaticGas
+            }).ToListAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "An error occurred ({ErrorMessage}) while getting region resources", ex.Message);
+        }
+
+        return [];
     }
 }

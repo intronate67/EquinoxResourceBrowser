@@ -18,18 +18,26 @@ namespace EquinoxResourceBrowser.Services
 
         public async Task<List<UpgradeDto>> GetUpgrades()
         {
-            return await (from u in _ctx.Upgrades
-                          join t in _ctx.Types on u.TypeId equals t.TypeId
-                          select new UpgradeDto
-                          {
-                              TypeId = u.TypeId,
-                              Name = t.Name,
-                              Power = u.Power,
-                              Workforce = u.Workforce,
-                              SuperionicRate = u.SuperionicRate,
-                              MagmaticRate = u.MagmaticRate
-                          }).ToListAsync();
-        }
+            try
+            {
+                return await (from u in _ctx.Upgrades
+                       join t in _ctx.Types on u.TypeId equals t.TypeId
+                       select new UpgradeDto
+                       {
+                           TypeId = u.TypeId,
+                           Name = t.Name,
+                           Power = u.Power,
+                           Workforce = u.Workforce,
+                           SuperionicRate = u.SuperionicRate,
+                           MagmaticRate = u.MagmaticRate
+                       }).ToListAsync();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "An error occurred ({ErrorMessage}) while getting upgrades", ex.Message);
+            }
 
+            return [];
+        }
     }
 }
