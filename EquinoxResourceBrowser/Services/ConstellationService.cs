@@ -18,22 +18,28 @@ namespace EquinoxResourceBrowser.Services
 
         public async Task<List<ConstellationDto>> GetConstellationsForRegion(int regionId)
         {
-            return await (from r in _ctx.Regions
-                          join c in _ctx.Constellations on r.RegionId equals c.RegionId
-                          join s in _ctx.SolarSystems on c.ConstellationId equals s.ConstellationId
-                          join p in _ctx.Planets on s.SolarSystemId equals p.SolarSystemId
-                          join st in _ctx.Stars on s.SolarSystemId equals st.SolarSystemId
-                          where r.RegionId == regionId
-                          group new { p, st } by new { c.ConstellationId, c.Name} into grouping
-                          select new ConstellationDto
-                          {
-                              Id = grouping.Key.ConstellationId,
-                              Name = grouping.Key.Name,
-                              TotalPower = (grouping.Sum(r => r.p.Power) + grouping.Select(g => g.st).First().Power) ?? 0,
-                              TotalWorkforce = grouping.Sum(r => r.p.Workforce) ?? 0,
-                              SuperionicRate = grouping.Sum(r => r.p.SuperionicRate) ?? 0,
-                              MagmaticRate = grouping.Sum(r => r.p.MagmaticRate) ?? 0
-                          }).ToListAsync();
+            try
+            {
+                return await _ctx.ConstellationResources
+                    .Where(c => c.RegionId == regionId)
+                    .OrderBy(c => c.Name)
+                    .Select(c => new ConstellationDto
+                    {
+                        Id = c.ConstellationId,
+                        Name = c.Name,
+                        TotalPower = c.TotalPower ?? 0,
+                        TotalWorkforce = c.TotalWorkforce ?? 0,
+                        SuperionicRate = c.TotalSuperionicIce ?? 0,
+                        MagmaticRate = c.TotalMagmaticGas ?? 0
+                    }).ToListAsync();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "An error occurred ({ErrorMessage}) while getting constellation resources for region: {RegionId}",
+                    ex.Message, regionId);
+            }
+
+            return [];
         }
     }
 }

@@ -4,6 +4,7 @@ using EquinoxResourceBrowser.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace EquinoxResourceBrowser.Data.Migrations
 {
     [DbContext(typeof(ResourceContext))]
-    partial class ResourceContextModelSnapshot : ModelSnapshot
+    [Migration("20240620033120_ConstellationView")]
+    partial class ConstellationView
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -498,28 +501,6 @@ namespace EquinoxResourceBrowser.Data.Migrations
 
             modelBuilder.Entity("EquinoxResourceBrowser.Data.Models.VConstellation", b =>
                 {
-                    b.Property<int>("ConstellationId")
-                        .HasColumnType("int");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<int>("RegionId")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("TotalMagmaticGas")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("TotalPower")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("TotalSuperionicIce")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("TotalWorkforce")
-                        .HasColumnType("int");
-
                     b.ToTable((string)null);
 
                     b.ToView("View_Constellations", (string)null);
@@ -549,38 +530,6 @@ namespace EquinoxResourceBrowser.Data.Migrations
                     b.ToTable((string)null);
 
                     b.ToView("View_Regions", (string)null);
-                });
-
-            modelBuilder.Entity("EquinoxResourceBrowser.Data.Models.VSystem", b =>
-                {
-                    b.Property<int>("ConstellationId")
-                        .HasColumnType("int");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<int>("RegionId")
-                        .HasColumnType("int");
-
-                    b.Property<int>("SolarSystemId")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("TotalMagmaticGas")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("TotalPower")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("TotalSuperionicIce")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("TotalWorkforce")
-                        .HasColumnType("int");
-
-                    b.ToTable((string)null);
-
-                    b.ToView("View_Systems", (string)null);
                 });
 #pragma warning restore 612, 618
         }

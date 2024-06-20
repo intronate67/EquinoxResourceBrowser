@@ -1,13 +1,15 @@
-﻿namespace EquinoxResourceBrowser.Dtos
+﻿namespace EquinoxResourceBrowser.Data.Models
 {
-    public class SystemDto
+    public class VSystem
     {
-        public int Id { get; set; }
+        public int SolarSystemId { get; set; }
         public string Name { get; set; } = "N/A";
-        public int TotalPower { get; set; }
-        public int TotalWorkforce { get; set; }
-        public int SuperionicRate { get; set; }
-        public int MagmaticRate { get; set; }
+        public int ConstellationId { get; set; }
+        public int RegionId { get; set; }
+        public int? TotalPower { get; set; }
+        public int? TotalWorkforce { get; set; }
+        public int? TotalSuperionicIce { get; set; }
+        public int? TotalMagmaticGas { get; set; }
         public int? SovereignAllianceId { get; set; }
         public string? SovereignAllianceName { get; set; }
         public int? SovereignCorporationId { get; set; }
