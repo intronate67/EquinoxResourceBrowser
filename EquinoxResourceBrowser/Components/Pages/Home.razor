@@ -130,8 +130,8 @@
                                     </RadzenDataGrid>
                                 </div>
                                 <div class="col-lg-4 mt-3 mt-lg-0">
-                                    <RadzenCard class="">
-                                        <div id="scrollable-resources" class="d-flex rz-background-color-base-200 rounded-1">
+                                    <RadzenCard class="h-100">
+                                        <div id="scrollable-resources" class="d-flex rz-background-color-base-200 h-100 rounded-1">
                                             <RadzenStack Orientation="Orientation.Vertical" class="w-100">
                                                 <RadzenLabel class="px-2 pt-2"><b>System Upgrades</b></RadzenLabel>
                                                 <RadzenFormField Text="Workforce Restriction" Variant="Variant.Outlined" class="px-2">
@@ -165,35 +165,59 @@
                                                     </RadzenFormField>
                                                     if (CalculatedResources.TotalPower > 0 || CalculatedResources.TotalWorkforce > 0 && PossibleUpgrades.Count > 0)
                                                     {
-                                                        <div class="row">
-                                                            <div class="col-md-7">
-                                                                <RadzenFormField Text="Upgrades" Variant="Variant.Outlined" class="ps-2 pb-2">
-                                                                    <RadzenCheckBoxList Orientation="Orientation.Vertical" TValue="UpgradeDto" @bind-Value=SelectedUpgrades class="ps-2 pt-3">
-                                                                        <Items>
-                                                                            @foreach (var upgrade in PossibleUpgrades)
-                                                                            {
-                                                                                <RadzenCheckBoxListItem Value="upgrade" Text="@upgrade.Name" />
-                                                                            }
-                                                                        </Items>
-                                                                    </RadzenCheckBoxList>
-                                                                </RadzenFormField>
-                                                            </div>
-                                                            <div class="col-md-5">
-                                                                <RadzenFormField Text="Required Resources" Variant="Variant.Outlined" class="w-100 pe-2">
-                                                                    <RadzenStack Orientation="Orientation.Vertical" class="text-start p-3">
-                                                                        <RadzenText TextStyle="TextStyle.Overline" class="mb-0 mt-3">Required Power</RadzenText>
-                                                                        <RadzenText TextStyle="TextStyle.Body1"><b class="@GetResourceCssColor(SelectedPowerRequirement, CalculatedResources.TotalPower)">@SelectedPowerRequirement</b></RadzenText>
-                                                                        <RadzenText TextStyle="TextStyle.Overline" class="mb-0">Required Workforce</RadzenText>
-                                                                        <RadzenText TextStyle="TextStyle.Body1"><b class="@GetResourceCssColor(SelectedWorkforceRequirement, CalculatedResources.TotalWorkforce)">@SelectedWorkforceRequirement</b></RadzenText>
-                                                                        <RadzenText TextStyle="TextStyle.Overline" class="mb-0">Superionic Ice / Hour</RadzenText>
-                                                                        <RadzenText TextStyle="TextStyle.Body1"><b>@SelectedSuperionicRate</b></RadzenText>
-                                                                        <RadzenText TextStyle="TextStyle.Overline" class="mb-0">Magmatic Gas / Hour</RadzenText>
-                                                                        <RadzenText TextStyle="TextStyle.Body1"><b>@SelectedMagmaticRate</b></RadzenText>
-                                                                    </RadzenStack>
-                                                                </RadzenFormField>
-
-                                                            </div>
-                                                        </div>
+                                                        <RadzenFormField Text="Required Resources" Variant="Variant.Outlined" class="mb-2 px-2">
+                                                            <RadzenStack Orientation="Orientation.Horizontal" class="text-center p-2" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween">
+                                                                <div>
+                                                                    <RadzenText TextStyle="TextStyle.Overline" class="mb-0 mt-3">Required Power</RadzenText>
+                                                                    <RadzenText TextStyle="TextStyle.Body1"><b class="@GetResourceCssColor(SelectedPowerRequirement, CalculatedResources.TotalPower)">@SelectedPowerRequirement</b></RadzenText>
+                                                                </div>
+                                                                <div>
+                                                                    <RadzenText TextStyle="TextStyle.Overline" class="mb-0">Required Workforce</RadzenText>
+                                                                    <RadzenText TextStyle="TextStyle.Body1"><b class="@GetResourceCssColor(SelectedWorkforceRequirement, CalculatedResources.TotalWorkforce)">@SelectedWorkforceRequirement</b></RadzenText>
+                                                                </div>
+                                                                <div>
+                                                                    <RadzenText TextStyle="TextStyle.Overline" class="mb-0">Ice / Hour</RadzenText>
+                                                                    <RadzenText TextStyle="TextStyle.Body1"><b>@SelectedSuperionicRate</b></RadzenText>
+                                                                </div>
+                                                                <div>
+                                                                    <RadzenText TextStyle="TextStyle.Overline" class="mb-0">Gas / Hour</RadzenText>
+                                                                    <RadzenText TextStyle="TextStyle.Body1"><b>@SelectedMagmaticRate</b></RadzenText>
+                                                                </div>
+                                                            </RadzenStack>
+                                                        </RadzenFormField>
+                                                        <RadzenLabel Text="Select Upgrades" Component="UpgradeDropdown" class="px-2 mb-1" />
+                                                        <RadzenDropDownDataGrid Name="UpgradeDropdown"
+                                                                                FocusFilterOnPopup="true"
+                                                                                Multiple="true"
+                                                                                AllowClear="true"
+                                                                                Placeholder="Select..."
+                                                                                @bind-Value=SelectedUpgrades
+                                                                                Data="PossibleUpgrades"
+                                                                                TextProperty="Name"
+                                                                                class="mx-2 mb-2"
+                                                                                PageSize="10"
+                                                                                Responsive="true"
+                                                                                Chips="true"
+                                                                                Style="min-height: 50px;"
+                                                                                @ref=UpgradeGrid>
+                                                            <Columns>
+                                                                <RadzenDropDownDataGridColumn Width="40px" Sortable="false" TextAlign="TextAlign.Center" HeaderCssClass="text-center">
+                                                                    <HeaderTemplate>
+                                                                        <RadzenCheckBox InputAttributes="@(new Dictionary<string,object>(){ { "aria-label", "select all" }})" Disabled="@(!UpgradeGrid?.AllowSelectAll ?? false)" TriState="false" TValue="bool" Value="@(PossibleUpgrades.Any(c => SelectedUpgrades != null && SelectedUpgrades.Contains(c)))"
+                                                                                        Change="@(args => SelectedUpgrades = args ? UpgradeGrid.View.Cast<UpgradeDto>() : SelectedUpgrades = Enumerable.Empty<UpgradeDto>())" />
+                                                                    </HeaderTemplate>
+                                                                    <Template Context="data">
+                                                                        <RadzenCheckBox InputAttributes="@(new Dictionary<string,object>(){ { "aria-label", "select item" }})" TriState="false" Value="@(SelectedUpgrades != null && SelectedUpgrades.Contains(((UpgradeDto) data)))"
+                                                                                        TValue="bool" Change=@(args => UpgradeGrid.SelectItem(data)) @onclick:stopPropagation />
+                                                                    </Template>
+                                                                </RadzenDropDownDataGridColumn>
+                                                                <RadzenDropDownDataGridColumn Property="Name" Title="Name" Width="50%" />
+                                                                <RadzenDropDownDataGridColumn Property="Power" Title="Power" Width="10%" />
+                                                                <RadzenDropDownDataGridColumn Property="Workforce" Title="Workforce" Width="10%" />
+                                                                <RadzenDropDownDataGridColumn Property="SuperionicRate" Title="Ice" />
+                                                                <RadzenDropDownDataGridColumn Property="MagmaticRate" Title="Gas" />
+                                                            </Columns>
+                                                        </RadzenDropDownDataGrid>
                                                     }
                                                     else
                                                     {
@@ -261,7 +285,7 @@
     {
         get 
         {
-            if (!SelectedUpgrades.Any()) return default;
+            if (SelectedUpgrades == null || !SelectedUpgrades.Any()) return default;
 
             return SelectedUpgrades.Sum(u => u.Power);
         }
@@ -270,7 +294,7 @@
     {
         get 
         {
-            if (!SelectedUpgrades.Any()) return default;
+            if (SelectedUpgrades == null || !SelectedUpgrades.Any()) return default;
 
             return SelectedUpgrades.Sum(u => u.Workforce);
         }
@@ -279,7 +303,7 @@
     {
         get 
         {
-            if (!SelectedUpgrades.Any()) return default;
+            if (SelectedUpgrades == null || !SelectedUpgrades.Any()) return default;
 
             return SelectedUpgrades.Sum(u => u.SuperionicRate);
         }
@@ -289,7 +313,7 @@
     {
         get 
         {
-            if (!SelectedUpgrades.Any()) return default;
+            if (SelectedUpgrades == null || !SelectedUpgrades.Any()) return default;
 
             return SelectedUpgrades.Sum(u => u.MagmaticRate);
         }
@@ -303,6 +327,7 @@
     private ResourceDto? SystemResources { get; set; }
     private CalculatedResourceDto? CalculatedResources { get; set; }
 
+    private RadzenDropDownDataGrid<IEnumerable<UpgradeDto>>? UpgradeGrid { get; set; }
     private RadzenDataGrid<RegionDto>? RegionGrid { get; set; }
     private RadzenDataGrid<ConstellationDto>? ConstellationGrid { get; set; }
     private RadzenDataGrid<SystemDto>? SystemGrid { get; set; }
