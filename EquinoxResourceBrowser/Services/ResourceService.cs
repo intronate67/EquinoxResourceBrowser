@@ -1,10 +1,10 @@
 ﻿using EquinoxResourceBrowser.Data;
-using EquinoxResourceBrowser.Data.Models;
 using EquinoxResourceBrowser.Dtos;
 using EquinoxResourceBrowser.Dtos.Resources;
 using EquinoxResourceBrowser.Enums;
 using EquinoxResourceBrowser.Interfaces;
 using Microsoft.EntityFrameworkCore;
+using System.Diagnostics.CodeAnalysis;
 
 namespace EquinoxResourceBrowser.Services
 {
@@ -22,141 +22,121 @@ namespace EquinoxResourceBrowser.Services
         public async Task<CalculatedResourceDto?> CalculateAvailableResources(int solarSystemId, RestrictionFilter filter = RestrictionFilter.AllConnected)
         {
             // Calculate connected solar systems based on the filter
-            if (filter == RestrictionFilter.SystemOnly)
+            var rootSystem = await _ctx.SystemResources.Where(s => s.SolarSystemId == solarSystemId).Select(s => new CalculatedResourceDto
+            {
+                SolarSystemId = solarSystemId,
+                ConstellationId = s.ConstellationId,
+                RegionId = s.RegionId,
+                AllianceId = s.SovereignAllianceId,
+                CorporationId = s.SovereignCorporationId,
+                TotalPower = s.TotalPower ?? 0,
+                TotalWorkforce = s.TotalWorkforce ?? 0,
+            }).FirstOrDefaultAsync();
+
+            if (rootSystem is null || filter == RestrictionFilter.SystemOnly)
             {
                 // Do not calculate connected systems as we only care about the single system
-                return await (from s in _ctx.SolarSystems
-                              join st in _ctx.Stars on s.SolarSystemId equals st.SolarSystemId
-                              join p in _ctx.Planets on s.SolarSystemId equals p.SolarSystemId
-                              where s.SolarSystemId == solarSystemId
-                              group new { p } by new { s.SolarSystemId, s.StarId, st.Power } into grouping
-                              select new CalculatedResourceDto
-                              {
-                                  SolarSystemId = grouping.Key.SolarSystemId,
-                                  TotalPower = (grouping.Sum(g => g.p.Power) + grouping.Key.Power) ?? 0,
-                                  TotalWorkforce = grouping.Sum(g => g.p.Workforce) ?? 0,
-                              }).FirstOrDefaultAsync() ?? new CalculatedResourceDto
-                              {
-                                  SolarSystemId = solarSystemId,
-                              };
+                return rootSystem;
             }
 
-            if (filter == RestrictionFilter.ConstellationOnly || filter == RestrictionFilter.RegionOnly || filter == RestrictionFilter.AllConnected)
-            {
-                var result = await (from s in _ctx.SolarSystems
-                                    join c in _ctx.Constellations on s.ConstellationId equals c.ConstellationId
-                                    join st in _ctx.Stars on s.SolarSystemId equals st.SolarSystemId
-                                    join p in _ctx.Planets on s.SolarSystemId equals p.SolarSystemId
-                                    join sv in _ctx.Sovereignties on s.SolarSystemId equals sv.SolarSystemId
-                                    where s.SolarSystemId == solarSystemId
-                                    group new { p, sv } by new
-                                    {
-                                        s.SolarSystemId,
-                                        s.ConstellationId,
-                                        c.RegionId,
-                                        s.StarId,
-                                        st.Power
-                                    } into grouping
-                                    select new CalculatedResourceDto
-                                    {
-                                        SolarSystemId = grouping.Key.SolarSystemId,
-                                        ConstellationId = grouping.Key.ConstellationId,
-                                        RegionId = grouping.Key.RegionId,
-                                        TotalPower = grouping.Sum(g => g.p.Power) + grouping.Key.Power ?? 0,
-                                        TotalWorkforce = grouping.Sum(g => g.p.Workforce) ?? 0,
-                                        AllianceId = grouping.Select(g => g.sv).First().AllianceId,
-                                        CorporationId = grouping.Select(g => g.sv).First().CorporationId
-                                    }).FirstOrDefaultAsync();
-
-                if (result == null) return null;
-
-                HashSet<int> visited = [solarSystemId];
-
-                await TraverseConnectedSystems(solarSystemId, visited, result, filter, result.AllianceId, result.CorporationId);
-
-                return result;
-            }
-
-            return null;
-        }
-
-        private async Task TraverseConnectedSystems(int currentSystemId, HashSet<int> visited,
-            CalculatedResourceDto result, RestrictionFilter filter, int? sourceAllianceId, int? sourceCorpId)
-        {
-            visited.Add(currentSystemId);
-
-            IQueryable<ConnectedSystem> connectedSystemsQuery;
+            List<NodePart> nodeParts = [];
 
             if (filter == RestrictionFilter.ConstellationOnly)
             {
-                connectedSystemsQuery = from sg in _ctx.Stargates
-                                        join dsg in _ctx.Stargates on sg.DestinationStargateId equals dsg.StargateId
-                                        join s in _ctx.SolarSystems on dsg.SolarSystemId equals s.SolarSystemId
-                                        join st in _ctx.Stars on s.SolarSystemId equals st.SolarSystemId
-                                        join p in _ctx.Planets on s.SolarSystemId equals p.SolarSystemId
-                                        join sv in _ctx.Sovereignties on s.SolarSystemId equals sv.SolarSystemId
-                                        where sg.SolarSystemId == currentSystemId
-                                              && s.ConstellationId == result.ConstellationId
-                                              && (sv.AllianceId == sourceAllianceId || sv.CorporationId == sourceCorpId)
-                                        select new ConnectedSystem
-                                        {
-                                            SolarSystem = s,
-                                            Star = st,
-                                            Planet = p,
-                                            Sovereignty = sv
-                                        };
+                nodeParts = await (from sr in _ctx.SystemResources
+                                   join sg in _ctx.Stargates on sr.SolarSystemId equals sg.SolarSystemId
+                                   where sr.ConstellationId == rootSystem.ConstellationId
+                                   select new NodePart
+                                   {
+                                       Resource = new CalculatedResourceDto
+                                       {
+                                           SolarSystemId = sr.SolarSystemId,
+                                           ConstellationId = sr.ConstellationId,
+                                           RegionId = sr.RegionId,
+                                           AllianceId = sr.SovereignAllianceId,
+                                           CorporationId = sr.SovereignCorporationId,
+                                           TotalPower = sr.TotalPower ?? 0,
+                                           TotalWorkforce = sr.TotalWorkforce ?? 0,
+                                       },
+                                       Edge = sg.DestinationSystemId
+                                   }).ToListAsync();
             }
             else if (filter == RestrictionFilter.RegionOnly)
             {
-                connectedSystemsQuery = from sg in _ctx.Stargates
-                                        join dsg in _ctx.Stargates on sg.DestinationStargateId equals dsg.StargateId
-                                        join s in _ctx.SolarSystems on dsg.SolarSystemId equals s.SolarSystemId
-                                        join c in _ctx.Constellations on s.ConstellationId equals c.ConstellationId
-                                        join st in _ctx.Stars on s.SolarSystemId equals st.SolarSystemId
-                                        join p in _ctx.Planets on s.SolarSystemId equals p.SolarSystemId
-                                        join sv in _ctx.Sovereignties on s.SolarSystemId equals sv.SolarSystemId
-                                        where sg.SolarSystemId == currentSystemId
-                                              && c.RegionId == result.RegionId
-                                              && (sv.AllianceId == sourceAllianceId || sv.CorporationId == sourceCorpId)
-                                        select new ConnectedSystem
-                                        {
-                                            SolarSystem = s,
-                                            Star = st,
-                                            Planet = p,
-                                            Sovereignty = sv
-                                        };
+                nodeParts = await (from sr in _ctx.SystemResources
+                                   join sg in _ctx.Stargates on sr.SolarSystemId equals sg.SolarSystemId
+                                   where sr.RegionId == rootSystem.RegionId
+                                   select new NodePart
+                                   {
+                                       Resource = new CalculatedResourceDto
+                                       {
+                                           SolarSystemId = sr.SolarSystemId,
+                                           ConstellationId = sr.ConstellationId,
+                                           RegionId = sr.RegionId,
+                                           AllianceId = sr.SovereignAllianceId,
+                                           CorporationId = sr.SovereignCorporationId,
+                                           TotalPower = sr.TotalPower ?? 0,
+                                           TotalWorkforce = sr.TotalWorkforce ?? 0,
+                                       },
+                                       Edge = sg.DestinationSystemId
+                                   }).ToListAsync();
             }
-            else // filter == RestrictionFilter.AllConnected
+            else if (filter == RestrictionFilter.AllConnected)
             {
-                connectedSystemsQuery = from sg in _ctx.Stargates
-                                        join dsg in _ctx.Stargates on sg.DestinationStargateId equals dsg.StargateId
-                                        join s in _ctx.SolarSystems on dsg.SolarSystemId equals s.SolarSystemId
-                                        join st in _ctx.Stars on s.SolarSystemId equals st.SolarSystemId
-                                        join p in _ctx.Planets on s.SolarSystemId equals p.SolarSystemId
-                                        join sv in _ctx.Sovereignties on s.SolarSystemId equals sv.SolarSystemId
-                                        where sg.SolarSystemId == currentSystemId
-                                              && (sv.AllianceId == sourceAllianceId || sv.CorporationId == sourceCorpId)
-                                        select new ConnectedSystem
-                                        {
-                                            SolarSystem = s,
-                                            Star = st,
-                                            Planet = p,
-                                            Sovereignty = sv
-                                        };
+                nodeParts = await (from sr in _ctx.SystemResources
+                                   join sg in _ctx.Stargates on sr.SolarSystemId equals sg.SolarSystemId
+                                   select new NodePart
+                                   {
+                                       Resource = new CalculatedResourceDto
+                                       {
+                                           SolarSystemId = sr.SolarSystemId,
+                                           ConstellationId = sr.ConstellationId,
+                                           RegionId = sr.RegionId,
+                                           AllianceId = sr.SovereignAllianceId,
+                                           CorporationId = sr.SovereignCorporationId,
+                                           TotalPower = sr.TotalPower ?? 0,
+                                           TotalWorkforce = sr.TotalWorkforce ?? 0,
+                                       },
+                                       Edge = sg.DestinationSystemId
+                                   }).ToListAsync();
             }
 
-            var connectedSystems = await connectedSystemsQuery.ToListAsync();
+            var nodes = nodeParts
+                    .GroupBy(np => np.Resource, new ResourceComparer())
+                    .Select(g => new Node
+                    {
+                        Resource = g.Key,
+                        Edges = g.Select(s => s.Edge)
+                    }).ToList();
 
-            foreach (var connectedSystem in connectedSystems)
+            // Start traversal with conditions (only connected (edges) systems (within the specified filter) owned (alliances/corporation) by the same people)
+            HashSet<int> visited = [rootSystem.SolarSystemId];
+            TraverseSystems(rootSystem, nodes, visited);
+
+            return rootSystem;
+        }
+
+        private void TraverseSystems(CalculatedResourceDto rootSystem, List<Node> nodes, HashSet<int> visited)
+        {
+            var currentNode = nodes.FirstOrDefault(n => n.Resource.SolarSystemId == rootSystem.SolarSystemId);
+
+            if (currentNode == null) return;
+
+            foreach (var edge in currentNode.Edges)
             {
-                if (visited.Contains(connectedSystem.SolarSystem.SolarSystemId)) continue;
+                if (!visited.Contains(edge))
+                {
+                    var connectedNode = nodes.FirstOrDefault(n => n.Resource.SolarSystemId == edge);
+                    if (connectedNode != null &&
+                        ((rootSystem.AllianceId != null && connectedNode.Resource.AllianceId == rootSystem.AllianceId) ||
+                        (rootSystem.CorporationId != null && connectedNode.Resource.CorporationId == rootSystem.CorporationId)))
+                    {
+                        rootSystem.TotalWorkforce += connectedNode.Resource.TotalWorkforce;
 
-                // Do not add power since it cannot be transfered between solar systems
-                //result.TotalPower += connectedSystem.Star.Power + connectedSystem.Planet.Power ?? 0;
-                result.TotalWorkforce += connectedSystem.Planet.Workforce ?? 0;
-
-                await TraverseConnectedSystems(connectedSystem.SolarSystem.SolarSystemId, visited,
-                    result, filter, connectedSystem.Sovereignty.AllianceId, connectedSystem.Sovereignty.CorporationId);
+                        visited.Add(edge);
+                        TraverseSystems(connectedNode.Resource, nodes, visited);
+                    }
+                }
             }
         }
 
@@ -201,11 +181,11 @@ namespace EquinoxResourceBrowser.Services
             try
             {
                 var existingStars = await _ctx.Stars.ToArrayAsync(stoppingToken);
-                if(existingStars is not null && existingStars.Length > 0)
+                if (existingStars is not null && existingStars.Length > 0)
                 {
-                    foreach(var star in from ex in existingStars
-                                        join res in stars on ex.StarId equals res.StarId
-                                        select new { ex, res })
+                    foreach (var star in from ex in existingStars
+                                         join res in stars on ex.StarId equals res.StarId
+                                         select new { ex, res })
                     {
                         star.ex.Power = star.res.Power;
                         star.ex.ModifiedTime = DateTime.UtcNow;
@@ -232,7 +212,7 @@ namespace EquinoxResourceBrowser.Services
             {
                 var existing = _ctx.Upgrades.FirstOrDefault(u => u.TypeId == upgrade.TypeId);
 
-                if(existing is null)
+                if (existing is null)
                 {
                     await _ctx.Upgrades.AddAsync(new Data.Models.Upgrade
                     {
@@ -266,12 +246,29 @@ namespace EquinoxResourceBrowser.Services
             return success;
         }
 
-        private class ConnectedSystem
+        private class Node
         {
-            public SolarSystem SolarSystem { get; set; }
-            public Star Star { get; set; }
-            public Planet Planet { get; set; }
-            public Sovereignty Sovereignty { get; set; }
+            public CalculatedResourceDto Resource { get; set; } = default!;
+            public IEnumerable<int> Edges { get; set; } = [];
+        }
+
+        private class NodePart
+        {
+            public CalculatedResourceDto Resource { get; set; } = default!;
+            public int Edge { get; set; }
+        }
+
+        private class ResourceComparer : EqualityComparer<CalculatedResourceDto>
+        {
+            public override bool Equals(CalculatedResourceDto? x, CalculatedResourceDto? y)
+            {
+                return x?.SolarSystemId == y?.SolarSystemId;
+            }
+
+            public override int GetHashCode([DisallowNull] CalculatedResourceDto obj)
+            {
+                return obj.SolarSystemId.GetHashCode();
+            }
         }
     }
 }
